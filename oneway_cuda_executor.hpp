@@ -170,6 +170,10 @@ class depend_on_t
 
 constexpr depend_on_t depend_on {};
 
+class dependency_id_t {};
+
+constexpr dependency_id_t dependency_id {};
+
 
 class oneway_cuda_executor
 {
@@ -185,9 +189,9 @@ class oneway_cuda_executor
       return oneway_cuda_executor(d.value());
     }
 
-    cudaEvent_t query_last_event() const
+    cudaEvent_t query(dependency_id_t) const
     {
-      return last_event_.native_handle();
+      return dependency_id_.native_handle();
     }
 
     template<class Function>
@@ -203,27 +207,8 @@ class oneway_cuda_executor
       _singular_kernel<<<1,1,0,stream.native_handle()>>>(f);
 
       // record an event corresponding to this launch
-      stream.record(last_event_.native_handle());
+      stream.record(dependency_id_.native_handle());
     }
-
-    // XXX this is disabled because dealing with the SharedFactory is a PITA to implement
-    //template<class Function, class SharedFactory>
-    //void bulk_execute(Function f, size_t n, SharedFactory shared_factory) const
-    //{
-    //  // create a new stream
-    //  _cuda_stream stream;
-
-    //  // make stream wait on our external dependency
-    //  stream.wait_on(external_dependency_);
-
-    //  // launch the bulk kernel
-    //  size_t block_size = 256;
-    //  size_t num_blocks = (n + block_size - 1) / block_size;
-    //  _bulk_kernel<<<num_blocks, block_size, 0, stream.native_handle()>>>(f);
-
-    //  // record an event corresponding to this launch
-    //  stream.record(last_event_.native_handle());
-    //}
 
   private:
     oneway_cuda_executor(cudaEvent_t external_dependency)
@@ -233,7 +218,7 @@ class oneway_cuda_executor
     cudaEvent_t external_dependency_;
 
     // this is an RAII object because it is "owned" by *this
-    _cuda_event last_event_;
+    _cuda_event dependency_id_;
 };
 
 static_assert(std::is_copy_constructible<oneway_cuda_executor>::value, "oneway_cuda_executor is not copy constructible.");
