@@ -6,12 +6,12 @@
 
 int main()
 {
-  // demonstrate a CUDA task dependent on a task running in a new thread
+  // demonstrate a GPU task dependent on a host task
   new_thread_executor host;
   oneway_cuda_executor gpu;
 
   // create a signaller
-  auto signaller = gpu.query(signaller_factory)();
+  auto signaller = gpu.query(execution::signaller_factory)();
 
   // get the signaller's dependency
   auto task_a = signaller.dependency();
@@ -26,14 +26,14 @@ int main()
   });
 
   // launch task B on the GPU which depends on task A
-  gpu.require(depend_on(task_a)).execute([] __host__ __device__
+  gpu.require(execution::depend_on(task_a)).execute([] __host__ __device__
   {
     printf("Hello, world from task B running on the gpu!\n");
   });
 
   // wait on gpu's most recent task
   // require blocking and use a no-op task
-  gpu.require(blocking_always).execute([] __host__ __device__ {});
+  gpu.require(execution::blocking_always).execute([] __host__ __device__ {});
 
   std::cout << "OK" << std::endl;
 

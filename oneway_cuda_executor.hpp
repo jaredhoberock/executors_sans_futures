@@ -288,28 +288,28 @@ class oneway_cuda_executor
 
     oneway_cuda_executor(const oneway_cuda_executor&) = default;
 
-    cudaEvent_t query(dependency_id_t) const
+    cudaEvent_t query(execution::dependency_id_t) const
     {
       return dependency_id_.native_handle();
     }
 
-    detail::signaller_factory query(signaller_factory_t) const
+    detail::signaller_factory query(execution::signaller_factory_t) const
     {
       return detail::signaller_factory();
     }
 
-    oneway_cuda_executor require(depend_on_t<cudaEvent_t> d) const
+    oneway_cuda_executor require(execution::depend_on_t<cudaEvent_t> d) const
     {
       // XXX shouldn't the result executor depend on d AND dependency_id_?
       return oneway_cuda_executor(blocking_, d.value());
     }
 
-    oneway_cuda_executor require(blocking_never_t) const
+    oneway_cuda_executor require(execution::blocking_never_t) const
     {
       return oneway_cuda_executor(false, dependency_id_.native_handle());
     }
 
-    oneway_cuda_executor require(blocking_always_t) const
+    oneway_cuda_executor require(execution::blocking_always_t) const
     {
       return oneway_cuda_executor(true, dependency_id_.native_handle());
     }

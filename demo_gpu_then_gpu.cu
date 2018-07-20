@@ -15,8 +15,8 @@ int main()
   });
 
   // create a new executor dependent on task a
-  auto task_a = ex_a.query(dependency_id);
-  auto ex_b = ex_a.require(depend_on(task_a));
+  auto task_a = ex_a.query(execution::dependency_id);
+  auto ex_b = ex_a.require(execution::depend_on(task_a));
 
   // execute task b dependent on task a
   ex_b.execute([] __host__ __device__ ()
@@ -26,7 +26,7 @@ int main()
 
   // wait on ex_b's most recent task
   // require blocking and use a no-op task
-  ex_b.require(blocking_always).execute([] __host__ __device__ {});
+  ex_b.require(execution::blocking_always).execute([] __host__ __device__ {});
 
   std::cout << "OK" << std::endl;
 
