@@ -44,7 +44,7 @@ execution.
     auto signaller = execution::query(ex_b, execution::signaller_factory)();
 
     // get the signaller's dependency ID
-    auto task_b = signaller.dependency_id();
+    auto task_a = signaller.dependency_id();
 
     // launch task a on ex_a and signal when complete
     ex_a.execute([signaller = std::move(signaller)]() mutable
