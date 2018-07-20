@@ -56,7 +56,7 @@ execution.
     });
 
     // launch task b on ex_b dependent on task a
-    execution::require(ex_b, execution::depend_on(task_a)).execute([]
+    execution::require(ex_b, execution::depends_on(task_a)).execute([]
     {
       std::cout << "Hello, world from task b on ex_b!" << std::endl;
     });
