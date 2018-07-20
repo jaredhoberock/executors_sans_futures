@@ -23,7 +23,7 @@ int main()
     signaller.signal();
   });
 
-  // launch task B on the GPU and depend on task A
+  // launch task B on the GPU which depends on task A
   gpu.require(depend_on(task_a)).execute([] __host__ __device__
   {
     printf("Hello, world from task B running on the gpu!\n");
