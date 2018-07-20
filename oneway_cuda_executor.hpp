@@ -1,9 +1,12 @@
+#pragma once
+
 #include <cuda.h>
 #include <iostream>
 #include <utility>
 #include <type_traits>
 #include <memory>
 #include <cassert>
+#include "execution.hpp"
 
 
 namespace detail
@@ -276,49 +279,6 @@ struct signaller_factory
 } // end detail
 
 
-class depend_on_t
-{
-  public:
-    constexpr depend_on_t()
-      : depend_on_t(cudaEvent_t{})
-    {}
-
-    constexpr depend_on_t(cudaEvent_t e)
-      : event_(e)
-    {}
-
-    constexpr depend_on_t operator()(cudaEvent_t e) const
-    {
-      return depend_on_t{e};
-    }
-
-    constexpr cudaEvent_t value() const
-    {
-      return event_;
-    }
-
-  private:
-    cudaEvent_t event_;
-};
-
-
-constexpr depend_on_t depend_on{};
-
-class dependency_id_t {};
-
-constexpr dependency_id_t dependency_id{};
-
-class blocking_never_t {};
-constexpr blocking_never_t blocking_never{};
-
-class blocking_always_t {};
-constexpr blocking_always_t blocking_always{};
-
-
-class signaller_factory_t {};
-constexpr signaller_factory_t signaller_factory{};
-
-
 class oneway_cuda_executor
 {
   public:
@@ -338,7 +298,7 @@ class oneway_cuda_executor
       return detail::signaller_factory();
     }
 
-    oneway_cuda_executor require(depend_on_t d) const
+    oneway_cuda_executor require(depend_on_t<cudaEvent_t> d) const
     {
       // XXX shouldn't the result executor depend on d AND dependency_id_?
       return oneway_cuda_executor(blocking_, d.value());
