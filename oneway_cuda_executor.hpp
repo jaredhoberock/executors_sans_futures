@@ -1,6 +1,8 @@
+#include <cuda.h>
 #include <iostream>
 #include <utility>
 #include <type_traits>
+#include <memory>
 #include <cassert>
 
 
@@ -148,6 +150,128 @@ __global__ void singular_kernel(Function f)
   f();
 }
 
+__global__ void dummy_kernel() {}
+
+class signaller
+{
+  public:
+    signaller()
+      : flag_(new std::int32_t(0)),
+        d_flag_(get_device_pointer(flag_.get())),
+        event_(make_event())
+    {}
+
+    signaller(signaller&& other)
+      : flag_(std::move(other.flag_)),
+        d_flag_{},
+        event_{}
+    {
+      std::swap(d_flag_, other.d_flag_);
+      std::swap(event_, other.event_);
+    }
+
+    ~signaller()
+    {
+      if(event_)
+      {
+        if(auto error = cudaEventDestroy(event_))
+        {
+          std::cerr << "CUDA error after cudaEventDestroy() in ~signaller: " + std::string(cudaGetErrorString(error));
+          std::terminate();
+        }
+      }
+
+      if(flag_)
+      {
+        if(auto error = cudaHostUnregister(flag_.get()))
+        {
+          std::cerr << "CUDA error after cudaHostUnregister() in ~signaller: " + std::string(cudaGetErrorString(error));
+          std::terminate();
+        }
+      }
+    }
+
+    void signal()
+    {
+      *flag_ = true;
+    }
+
+    cudaEvent_t dependency() const
+    {
+      return event_;
+    }
+
+  private:
+    static std::int32_t* get_device_pointer(std::int32_t* ptr)
+    {
+      if(auto error = cudaHostRegister(ptr, sizeof(std::int32_t), cudaHostRegisterDefault))
+      {
+        throw std::runtime_error("CUDA error after cudaHostRegister(): " + std::string(cudaGetErrorString(error)));
+      }
+
+      std::int32_t* d_ptr = nullptr;
+      if(auto error = cudaHostGetDevicePointer(&d_ptr, ptr, 0))
+      {
+        throw std::runtime_error("CUDA error after cudaHostGetDevicePointer(): " + std::string(cudaGetErrorString(error)));
+      }
+
+      return d_ptr;
+    }
+
+    cudaEvent_t make_event()
+    {
+      // create a new stream
+      cudaStream_t stream{};
+      if(auto error = cudaStreamCreate(&stream))
+      {
+        throw std::runtime_error("CUDA error after cudaStreamCreate(): " + std::string(cudaGetErrorString(error)));
+      }
+
+      // make the stream wait on the flag
+      if(cuStreamWaitValue32(stream, reinterpret_cast<CUdeviceptr>(d_flag_), 1, CU_STREAM_WAIT_VALUE_EQ) != CUDA_SUCCESS)
+      {
+        throw std::runtime_error("CUDA error after cuStreamWaitValue32().");
+      }
+
+      // launch a dummy kernel
+      dummy_kernel<<<1,1,0,stream>>>();
+
+      // create an event
+      cudaEvent_t event{};
+      if(auto error = cudaEventCreateWithFlags(&event, cudaEventDisableTiming))
+      {
+        throw std::runtime_error("CUDA error after cudaEventCreateWithFlags(): " + std::string(cudaGetErrorString(error)));
+      }
+
+      // record it
+      if(auto error = cudaEventRecord(event, stream))
+      {
+        throw std::runtime_error("CUDA error after cudaEventRecord(): " + std::string(cudaGetErrorString(error)));
+      }
+
+      // destroy the stream
+      if(auto error = cudaStreamDestroy(stream))
+      {
+        throw std::runtime_error("CUDA error after cudaStreamDestroy(): " + std::string(cudaGetErrorString(error)));
+      }
+
+      return event;
+    }
+
+    std::unique_ptr<int32_t> flag_;
+    std::int32_t* d_flag_;
+    cudaEvent_t event_;
+};
+
+
+struct signaller_factory
+{
+  signaller operator()() const
+  {
+    return signaller();
+  }
+};
+
 
 } // end detail
 
@@ -190,6 +314,11 @@ constexpr blocking_never_t blocking_never{};
 class blocking_always_t {};
 constexpr blocking_always_t blocking_always{};
 
+
+class signaller_factory_t {};
+constexpr signaller_factory_t signaller_factory{};
+
+
 class oneway_cuda_executor
 {
   public:
@@ -202,6 +331,11 @@ class oneway_cuda_executor
     cudaEvent_t query(dependency_id_t) const
     {
       return dependency_id_.native_handle();
+    }
+
+    detail::signaller_factory query(signaller_factory_t) const
+    {
+      return detail::signaller_factory();
     }
 
     oneway_cuda_executor require(depend_on_t d) const
@@ -240,6 +374,16 @@ class oneway_cuda_executor
       {
         wait();
       }
+    }
+
+    bool operator==(const oneway_cuda_executor& other) const
+    {
+      return (blocking_ == other.blocking_) and (other.external_dependency_ == other.external_dependency_) and (other.dependency_id_.native_handle() == other.dependency_id_.native_handle());
+    }
+
+    bool operator!=(const oneway_cuda_executor& other) const
+    {
+      return !(*this == other);
     }
 
   private:
