@@ -37,29 +37,29 @@ signal its completion by a client of that executor. Such a signal would
 complete the dependency and release an already submitted task for active
 execution.
 
-   executor_a ex_a;
-   executor_b ex_b;
+    executor_a ex_a;
+    executor_b ex_b;
 
-   // create a signaller for ex_b
-   auto signaller = execution::query(ex_b, execution::signaller_factory)();
+    // create a signaller for ex_b
+    auto signaller = execution::query(ex_b, execution::signaller_factory)();
 
-   // get the signaller's dependency ID
-   auto task_b = signaller.dependency_id();
+    // get the signaller's dependency ID
+    auto task_b = signaller.dependency_id();
 
-   // launch task a on ex_a and signal when complete
-   ex_a.execute([signaller = std::move(signaller)]() mutable
-   {
-     std::cout << "Hello, world from task a on ex_a!" << std::endl;
+    // launch task a on ex_a and signal when complete
+    ex_a.execute([signaller = std::move(signaller)]() mutable
+    {
+      std::cout << "Hello, world from task a on ex_a!" << std::endl;
 
-     // signal that task a is complete
-     signaller.signal();
-   });
+      // signal that task a is complete
+      signaller.signal();
+    });
 
-   // launch task b on ex_b dependent on task a
-   execution::require(ex_b, execution::depend_on(task_a)).execute([]
-   {
-     std::cout << "Hello, world from task b on ex_b!" << std::endl;
-   });
+    // launch task b on ex_b dependent on task a
+    execution::require(ex_b, execution::depend_on(task_a)).execute([]
+    {
+      std::cout << "Hello, world from task b on ex_b!" << std::endl;
+    });
 
 # Impact on P0443
 
