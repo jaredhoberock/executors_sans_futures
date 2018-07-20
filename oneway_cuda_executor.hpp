@@ -1,24 +1,29 @@
 #include <iostream>
 #include <utility>
 #include <type_traits>
+#include <cassert>
 
 
-class _cuda_stream
+namespace detail
+{
+
+
+class cuda_stream
 {
   public:
-    _cuda_stream()
+    cuda_stream()
       : stream_(make_cudaStream_t())
     {}
 
-    _cuda_stream(const _cuda_stream&) = delete;
+    cuda_stream(const cuda_stream&) = delete;
 
-    _cuda_stream(_cuda_stream&& other)
+    cuda_stream(cuda_stream&& other)
       : stream_{}
     {
       std::swap(stream_, other.stream_);
     }
 
-    ~_cuda_stream()
+    ~cuda_stream()
     {
       if(stream_)
       {
@@ -37,6 +42,7 @@ class _cuda_stream
 
     void wait_on(cudaEvent_t event) const
     {
+      assert(event);
       if(auto error = cudaStreamWaitEvent(stream_, event, 0))
       {
         throw std::runtime_error("CUDA error after cudaStreamWaitEvent(): " + std::string(cudaGetErrorString(error)));
@@ -68,33 +74,34 @@ class _cuda_stream
 };
 
 
-class _cuda_event
+class cuda_event
 {
   public:
-    _cuda_event()
+    cuda_event()
       : event_(make_ready_cudaEvent_t())
     {}
 
-    _cuda_event(const _cuda_event& other)
-      : event_{}
+    cuda_event(const cuda_event& other)
+      : cuda_event()
     {
       // create a new stream so we can create a new event
-      _cuda_stream stream;
+      cuda_stream stream;
 
       // make stream wait on other
+      assert(other.native_handle());
       stream.wait_on(other.native_handle());
 
       // record our cudaEvent_t on stream
       stream.record(event_);
     }
 
-    _cuda_event(_cuda_event&& other)
+    cuda_event(cuda_event&& other)
       : event_{}
     {
       std::swap(event_, other.event_);
     }
 
-    ~_cuda_event()
+    ~cuda_event()
     {
       if(event_)
       {
@@ -129,17 +136,20 @@ class _cuda_event
 
 
 template<class Function>
-__global__ void _bulk_kernel(Function f)
+__global__ void bulk_kernel(Function f)
 {
   f(static_cast<size_t>(blockDim.x * blockIdx.x + threadIdx.x));
 }
 
 
 template<class Function>
-__global__ void _singular_kernel(Function f)
+__global__ void singular_kernel(Function f)
 {
   f();
 }
+
+
+} // end detail
 
 
 class depend_on_t
@@ -168,57 +178,86 @@ class depend_on_t
 };
 
 
-constexpr depend_on_t depend_on {};
+constexpr depend_on_t depend_on{};
 
 class dependency_id_t {};
 
-constexpr dependency_id_t dependency_id {};
+constexpr dependency_id_t dependency_id{};
 
+class blocking_never_t {};
+constexpr blocking_never_t blocking_never{};
+
+class blocking_always_t {};
+constexpr blocking_always_t blocking_always{};
 
 class oneway_cuda_executor
 {
   public:
     oneway_cuda_executor()
-      : oneway_cuda_executor(cudaEvent_t{})
+      : oneway_cuda_executor(false, cudaEvent_t{})
     {}
 
     oneway_cuda_executor(const oneway_cuda_executor&) = default;
-
-    oneway_cuda_executor require(depend_on_t d) const
-    {
-      return oneway_cuda_executor(d.value());
-    }
 
     cudaEvent_t query(dependency_id_t) const
     {
       return dependency_id_.native_handle();
     }
 
+    oneway_cuda_executor require(depend_on_t d) const
+    {
+      // XXX shouldn't the result executor depend on d AND dependency_id_?
+      return oneway_cuda_executor(blocking_, d.value());
+    }
+
+    oneway_cuda_executor require(blocking_never_t) const
+    {
+      return oneway_cuda_executor(false, dependency_id_.native_handle());
+    }
+
+    oneway_cuda_executor require(blocking_always_t) const
+    {
+      return oneway_cuda_executor(true, dependency_id_.native_handle());
+    }
+
     template<class Function>
     void execute(Function f) const
     {
       // create a new stream
-      _cuda_stream stream;
+      detail::cuda_stream stream;
 
       // make stream wait on our external dependency, if it exists
       if(external_dependency_) stream.wait_on(external_dependency_);
 
       // launch the singular kernel
-      _singular_kernel<<<1,1,0,stream.native_handle()>>>(f);
+      detail::singular_kernel<<<1,1,0,stream.native_handle()>>>(f);
 
       // record an event corresponding to this launch
       stream.record(dependency_id_.native_handle());
+
+      // block if we are required to
+      if(blocking_)
+      {
+        wait();
+      }
     }
 
   private:
-    oneway_cuda_executor(cudaEvent_t external_dependency)
-      : external_dependency_(external_dependency)
+    oneway_cuda_executor(bool blocking, cudaEvent_t external_dependency)
+      : blocking_(blocking), external_dependency_(external_dependency)
     {}
 
-    cudaEvent_t external_dependency_;
+    void wait() const
+    {
+      if(auto error = cudaEventSynchronize(dependency_id_.native_handle()))
+      {
+        throw std::runtime_error("CUDA error after cudaEventSynchronize(): " + std::string(cudaGetErrorString(error)));
+      }
+    }
 
-    // this is an RAII object because it is "owned" by *this
-    _cuda_event dependency_id_;
+    bool blocking_;
+    cudaEvent_t external_dependency_;
+    detail::cuda_event dependency_id_; // this is an RAII object because it is owned by *this
 };
 
 static_assert(std::is_copy_constructible<oneway_cuda_executor>::value, "oneway_cuda_executor is not copy constructible.");
