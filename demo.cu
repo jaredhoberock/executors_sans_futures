@@ -24,7 +24,7 @@ int main()
 
   // wait on ex_b's last event
   // XXX having to go out of band to synchronize is undesirable
-  // XXX maybe we could somehow use an inline_executor with a no-op task to wait here?
+  // XXX maybe we could somehow use a blocking executor with a no-op task to wait here?
   auto task_b = ex_b.query(dependency_id);
   if(auto error = cudaEventSynchronize(task_b))
   {
