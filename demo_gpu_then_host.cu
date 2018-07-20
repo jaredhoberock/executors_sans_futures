@@ -18,7 +18,8 @@ int main()
 
   // launch task A on the gpu and signal the host when complete
   // XXX attempting to pass the signaler to a GPU task is illegal
-  // XXX even if it were legal, it would be inefficient to do so because the most efficient place to signal is at a join point 
+  // XXX even if it were legal, it would be inefficient to do so because
+  // XXX the most efficient place to signal is at a join point after the body of the task completes.
   // XXX what if we had an optional property to call a function when the most recent task completes?
   // XXX what agent would that function be invoked on, and what would its execution guarantees be?
   gpu.execute([signaller = std::move(signaller)]() __host__ __device__ mutable
