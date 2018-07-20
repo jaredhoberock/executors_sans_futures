@@ -24,7 +24,7 @@ int main()
   // XXX what agent would that function be invoked on, and what would its execution guarantees be?
   gpu.execute([signaller = std::move(signaller)]() __host__ __device__ mutable
   {
-    std::cout << "Hello, world from task A running on the gpu!" << std::endl;
+    printf("Hello, world from task A running on the gpu!\n");
 
     // signal that task A is complete
     signaller.signal();
@@ -33,7 +33,7 @@ int main()
   // launch task B on the host which depends on task A
   host.require(depend_on(task_a)).execute([]
   {
-    printf("Hello, world from task B running on the host!\n");
+  std::cout << "Hello, world from task B running on the host!" << std::endl;
   });
 
   // wait on host's most recent task
