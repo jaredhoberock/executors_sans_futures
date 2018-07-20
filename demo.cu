@@ -22,7 +22,7 @@ int main()
     printf("Hello, world from task b!\n");
   });
 
-  // wait on ex_b's last event
+  // wait on ex_b's most recent task
   // require blocking and use a no-op task
   ex_b.require(blocking_always).execute([] __host__ __device__ {});
 
