@@ -1,5 +1,6 @@
-// nvcc -std=c++14 --expt-extended-lambda demo_host_then_gpu.cu -lcuda
+// nvcc -std=c++14 --expt-extended-lambda demo_gpu_then_gpu.cu -lcuda
 #include <iostream>
+#include "execution.hpp"
 #include "oneway_cuda_executor.hpp"
 
 int main()
@@ -7,7 +8,7 @@ int main()
   // start with an executor dependent on nothing
   oneway_cuda_executor ex_a;
 
-  // launch task a
+  // execute task a
   ex_a.execute([] __host__ __device__ ()
   {
     printf("Hello, world from task a!\n");
@@ -17,7 +18,7 @@ int main()
   auto task_a = ex_a.query(dependency_id);
   auto ex_b = ex_a.require(depend_on(task_a));
 
-  // launch task b dependent on task a
+  // execute task b dependent on task a
   ex_b.execute([] __host__ __device__ ()
   {
     printf("Hello, world from task b!\n");

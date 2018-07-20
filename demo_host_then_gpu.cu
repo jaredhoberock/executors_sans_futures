@@ -1,6 +1,8 @@
+// nvcc -std=c++14 --expt-extended-lambda demo_host_then_gpu.cu -lcuda
+#include <iostream>
+#include "execution.hpp"
 #include "oneway_cuda_executor.hpp"
 #include "new_thread_executor.hpp"
-#include <iostream>
 
 int main()
 {
