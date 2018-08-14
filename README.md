@@ -64,18 +64,18 @@ execution.
 # Impact on P0443
 
 1. Introduce new material
-  1. `DependencyId` type requirements
-  2. Requirable & preferable `execution::depends_on` property
-  3. Queryable `execution::dependency_id` property
-  4. Queryable `execution::signaller_factory` property
+   1. `DependencyId` type requirements
+   2. Requirable & preferable `execution::depends_on` property
+   3. Queryable `execution::dependency_id` property
+   4. Queryable `execution::signaller_factory` property
 4. Eliminate old material
-  1. `Future`
-  2. `executor_future_t`
-  3. `then_execute`
-  4. `twoway_execute`
-  5. `bulk_then_execute`
-  6. `bulk_twoway_execute`
-  7. Others?
+   1. `Future`
+   2. `executor_future_t`
+   3. `then_execute`
+   4. `twoway_execute`
+   5. `bulk_then_execute`
+   6. `bulk_twoway_execute`
+   7. Others?
 
 # Known Problems
 
